@@ -580,14 +580,14 @@ def handle_callback(call):
             order_sheet = ensure_orders_sheet()
             order_sheet.delete_rows(row_num, row_num)
             state['end_row'] -= 1
-            block_data = order_sheet.get(f'A{state['start_row']}:E{state['end_row']}')
+            block_data = order_sheet.get(f'A{state["start_row"]}:E{state["end_row"]}')
             total = sum(float(row[4].replace(',', '.')) for row in block_data if len(row) > 4 and row[4] and row[1])
             order_sheet.update_cell(state['end_row'], 5, total)
             total_format = CellFormat(
                 backgroundColor=Color(0.9, 1, 0.9),
                 textFormat=TextFormat(fontFamily='Roboto', fontSize=11, bold=True),
                 horizontalAlignment='RIGHT')
-            format_cell_range(order_sheet, f'D{state['end_row']}:E{state['end_row']}', total_format)
+            format_cell_range(order_sheet, f'D{state["end_row"]}:E{state["end_row"]}', total_format)
             state['block_data'] = block_data
             del state['selecting_item']
             del state['action']
