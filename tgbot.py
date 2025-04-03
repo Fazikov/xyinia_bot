@@ -36,7 +36,7 @@ def set_bot_commands():
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
 creds_dict = json.loads(credentials_json)
-creds = ServiceAccountCredentials.from_json_keydict(creds_dict, scope)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # Состояния пользователей
