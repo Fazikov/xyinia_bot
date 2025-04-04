@@ -848,8 +848,17 @@ def default_handler(message):
 def run_flask():
     app.run(host='0.0.0.0', port=8080)
 
-threading.Thread(target=run_flask, daemon=True).start()
-
 if __name__ == "__main__":
+    # Проверяем, что бот не запущен повторно
+    lock_file = "/tmp/tgbot.lock"
+    if os.path.exists(lock_file):
+        print("Бот уже запущен, завершаю этот экземпляр.")
+        exit(1)
+    with open(lock_file, 'w') as f:
+        f.write(str(os.getpid()))
+
     threading.Thread(target=run_flask, daemon=True).start()
-    bot.polling(none_stop=True)
+    try:
+        bot.polling(none_stop=True)
+    finally:
+        os.remove(lock_file)  # Удаляем lock-файл при завершении
