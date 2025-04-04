@@ -6,6 +6,14 @@ import pandas as pd
 import os
 import json
 from gspread_formatting import *
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def keep_alive():
+    return "Bot is alive!"
 
 # Загрузка конфигурации из config.json
 try:
@@ -836,6 +844,11 @@ def process_state(message):
 @bot.message_handler(func=lambda message: message.chat.id not in user_states)
 def default_handler(message):
     bot.reply_to(message, "👇 Выбери действие из меню:", reply_markup=create_main_menu())
+    
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+threading.Thread(target=run_flask, daemon=True).start()
 
 if __name__ == "__main__":
     bot.polling(none_stop=True)
