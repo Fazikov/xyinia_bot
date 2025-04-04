@@ -851,4 +851,5 @@ def run_flask():
 threading.Thread(target=run_flask, daemon=True).start()
 
 if __name__ == "__main__":
+    threading.Thread(target=run_flask, daemon=True).start()
     bot.polling(none_stop=True)
