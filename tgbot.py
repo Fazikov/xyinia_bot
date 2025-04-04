@@ -6,14 +6,6 @@ import pandas as pd
 import os
 import json
 from gspread_formatting import *
-from flask import Flask
-import threading
-
-app = Flask(__name__)
-
-@app.route('/')
-def keep_alive():
-    return "Bot is alive!"
 
 # Загрузка конфигурации из config.json
 try:
@@ -42,9 +34,7 @@ def set_bot_commands():
 
 # Настройка Google Sheets API
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
-creds_dict = json.loads(credentials_json)
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
 client = gspread.authorize(creds)
 
 # Состояния пользователей
@@ -590,14 +580,14 @@ def handle_callback(call):
             order_sheet = ensure_orders_sheet()
             order_sheet.delete_rows(row_num, row_num)
             state['end_row'] -= 1
-            block_data = order_sheet.get(f'A{state["start_row"]}:E{state["end_row"]}')
+            block_data = order_sheet.get(f'A{state['start_row']}:E{state['end_row']}')
             total = sum(float(row[4].replace(',', '.')) for row in block_data if len(row) > 4 and row[4] and row[1])
             order_sheet.update_cell(state['end_row'], 5, total)
             total_format = CellFormat(
                 backgroundColor=Color(0.9, 1, 0.9),
                 textFormat=TextFormat(fontFamily='Roboto', fontSize=11, bold=True),
                 horizontalAlignment='RIGHT')
-            format_cell_range(order_sheet, f'D{state["end_row"]}:E{state["end_row"]}', total_format)
+            format_cell_range(order_sheet, f'D{state['end_row']}:E{state['end_row']}', total_format)
             state['block_data'] = block_data
             del state['selecting_item']
             del state['action']
@@ -844,21 +834,6 @@ def process_state(message):
 @bot.message_handler(func=lambda message: message.chat.id not in user_states)
 def default_handler(message):
     bot.reply_to(message, "👇 Выбери действие из меню:", reply_markup=create_main_menu())
-    
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
 
 if __name__ == "__main__":
-    # Проверяем, что бот не запущен повторно
-    lock_file = "/tmp/tgbot.lock"
-    if os.path.exists(lock_file):
-        print("Бот уже запущен, завершаю этот экземпляр.")
-        exit(1)
-    with open(lock_file, 'w') as f:
-        f.write(str(os.getpid()))
-
-    threading.Thread(target=run_flask, daemon=True).start()
-    try:
-        bot.polling(none_stop=True)
-    finally:
-        os.remove(lock_file)  # Удаляем lock-файл при завершении
+    bot.polling(none_stop=True)
