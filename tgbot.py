@@ -6,6 +6,8 @@ import pandas as pd
 import os
 import json
 from gspread_formatting import *
+from datetime import datetime
+import time
 
 # Загрузка конфигурации из config.json
 try:
@@ -28,7 +30,8 @@ SPREADSHEET_ID = config['spreadsheet_id']
 def set_bot_commands():
     commands = [
         types.BotCommand("start", "Запустить бота"),
-        types.BotCommand("search", "Найти товар")
+        types.BotCommand("search", "Найти товар"),
+        types.BotCommand("export", "Выгрузить остатки")  # Добавим команду /export
     ]
     bot.set_my_commands(commands)
 
@@ -89,6 +92,7 @@ def find_order_block(order_sheet, order_name):
     start_row = None
     end_row = None
     for i, row in enumerate(all_data, 1):
+
         if row and row[0].replace('📋 ', '') == order_name and start_row is None:
             start_row = i
         elif start_row and (not row or row[0] or (len(row) > 3 and row[3] == 'Итого')):
@@ -141,35 +145,77 @@ def export_stock(chat_id):
         bot.send_message(chat_id, "❌ Лист 'СКЛАД' не найден. Проверь настройки!")
         return
     
-    all_data = warehouse_sheet.get_all_values()[1:]
-    stock_items = [(row[1], int(row[2]) if row[2] and row[2] != '-' else 0) for row in all_data 
-                  if len(row) >= 3 and row[1] and (row[2] and row[2] != '-' and int(row[2]) > 0)]
+    # Получаем все данные из листа "СКЛАД"
+    all_data = warehouse_sheet.get_all_values()[1:]  # Пропускаем заголовок
+    # Формируем список товаров с остатками > 0
+    stock_items = []
+    for row in all_data:
+        if len(row) >= 7:  # Убедимся, что строка содержит все нужные столбцы
+            item_name = row[1]  # Название товара
+            qty = int(row[2]) if row[2] and row[2] != '-' else 0  # Количество
+            dealer_price = float(row[6].replace(',', '.')) if row[6] and row[6] != '-' else 0  # Дилерская цена
+            regular_price = float(row[4].replace(',', '.')) if row[4] and row[4] != '-' else 0  # Обычная цена
+            if qty > 0:  # Только товары с остатками > 0
+                stock_items.append((item_name, qty, dealer_price, regular_price))
+    
+    # Сортируем по названию товара
     stock_items.sort(key=lambda x: x[0].lower())
     
     if not stock_items:
         bot.send_message(chat_id, "📦 На складе нет товаров с остатками > 0!")
         return
     
+    # Группируем товары по первой букве для вывода в чат
     grouped_items = {}
-    for item_name, qty in stock_items:
+    for item_name, qty, dealer_price, regular_price in stock_items:
         first_letter = item_name[0].upper()
         if first_letter not in grouped_items:
             grouped_items[first_letter] = []
         grouped_items[first_letter].append((item_name, qty))
     
+    # Отправляем сообщения с товарами по буквам
     for letter, items in sorted(grouped_items.items()):
         message = f"📦 <b>Товары на букву '{letter}':</b>\n"
+
         for item_name, qty in items:
             message += f"📋 {item_name}\n📏 Количество: {qty}\n\n"
         bot.send_message(chat_id, message.strip(), parse_mode='HTML')
     
-    df = pd.DataFrame(stock_items, columns=['Товар', 'Количество'])
+    # Подсчитываем итоги
+    total_quantity = sum(item[1] for item in stock_items)  # Общее количество
+    total_dealer_price = sum(item[1] * item[2] for item in stock_items)  # Общая дилерская цена
+    total_regular_price = sum(item[1] * item[3] for item in stock_items)  # Общая обычная цена
+    
+    # Формируем DataFrame для Excel
+    df = pd.DataFrame(stock_items, columns=['Товар', 'Количество', 'Дилерская цена', 'Обычная цена'])
+    
+    # Добавляем итоговую строку
+    summary = pd.DataFrame({
+        'Товар': ['ИТОГО'],
+        'Количество': [total_quantity],
+        'Дилерская цена': [total_dealer_price],
+        'Обычная цена': [total_regular_price]
+    })
+    df = pd.concat([df, summary], ignore_index=True)
+    
+    # Сохраняем в Excel
     file_path = "stock_remains.xlsx"
     df.to_excel(file_path, index=False)
+    
+    # Отправляем файл в Telegram
     with open(file_path, 'rb') as file:
         bot.send_message(chat_id, "📄 <b>Полный список остатков на складе:</b>", parse_mode='HTML')
         bot.send_document(chat_id, file)
+    
+    # Удаляем временный файл
     os.remove(file_path)
+    
+    # Отправляем итоги отдельным сообщением
+    bot.send_message(chat_id, f"📊 <b>Итоги:</b>\n"
+                             f"Общее количество: {total_quantity}\n"
+                             f"Общая дилерская цена: {total_dealer_price:.2f} ₽\n"
+                             f"Общая обычная цена: {total_regular_price:.2f} ₽",
+                     parse_mode='HTML')
 
 # Функции для создания кнопок
 def create_main_menu():
@@ -292,6 +338,11 @@ def send_welcome(message):
 def handle_search_command(message):
     user_states[message.chat.id] = 'waiting_for_search'
     bot.reply_to(message, "🔍 Какой товар ищем? Введи название:", reply_markup=create_back_button())
+
+@bot.message_handler(commands=['export'])
+def handle_export_command(message):
+    bot.reply_to(message, "⏳ Выгружаю остатки склада...")
+    export_stock(message.chat.id)
 
 def show_search_result(chat_id, message_id):
     state = user_states.get(chat_id)
@@ -451,7 +502,7 @@ def handle_callback(call):
                                 chat_id, call.message.message_id, reply_markup=create_back_button())
         elif action == "name":
             bot.edit_message_text(f"📛 Текущие данные:\n{get_full_item_info(row_num, row)}\nНовое название товара:",
-            chat_id, call.message.message_id, reply_markup=create_back_button())
+                                chat_id, call.message.message_id, reply_markup=create_back_button())
         elif action == "price":
             bot.edit_message_text(f"💰 Текущие данные:\n{get_full_item_info(row_num, row)}\nНовая цена (например, 150.50):",
                                 chat_id, call.message.message_id, reply_markup=create_back_button())
@@ -575,8 +626,8 @@ def handle_callback(call):
             del state['selecting_item']
             del state['action']
             stock = get_stock_quantity(item[1].replace('🛒 ', ''))
-            bot.edit_message_text(f"📏 Введи новое количество для товара '{item[1].replace('🛒 ', '')}' (на складе: {stock} шт.):", 
-                                 chat_id, call.message.message_id, reply_markup=create_back_button())
+            bot.edit_message_text(f"📏 Введи новое количество для товара '{item[1].replace('🛒 ', '')}' (на складе: {stock} шт.):",
+                                chat_id, call.message.message_id, reply_markup=create_back_button())
         elif action == "delete":
             row_num = state['start_row'] + state['block_data'].index(item)
             order_sheet = ensure_orders_sheet()
@@ -724,6 +775,7 @@ def process_state(message):
                     bot.reply_to(message, f"⚠️ Значение должно быть больше 0. Сейчас: {current_value}", reply_markup=create_back_button())
                     return
                 stock = get_stock_quantity(row_data[1])
+
                 if new_value > stock:
                     bot.reply_to(message, f"⚠️ На складе только {stock} шт. Введи меньшее значение!", reply_markup=create_back_button())
                     return
@@ -836,5 +888,13 @@ def process_state(message):
 def default_handler(message):
     bot.reply_to(message, "👇 Выбери действие из меню:", reply_markup=create_main_menu())
 
+# Запуск бота
 if __name__ == "__main__":
-    bot.polling(none_stop=True)
+    print(f"Bot started at {datetime.now()}")
+    bot.delete_webhook()  # Удаляем webhook на всякий случай
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=20)
+        except Exception as e:
+            print(f"Polling error: {e}")
+            time.sleep(5)  # Перезапуск через 5 секунд
