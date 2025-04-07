@@ -629,7 +629,6 @@ def handle_callback(call):
         bot.send_message(chat_id, "🏠 Ты вернулся в главное меню! Что дальше? 😊", reply_markup=create_main_menu())
         del user_states[chat_id]
 
-# Обработка сообщений в зависимости от состояния
 @bot.message_handler(func=lambda message: message.chat.id in user_states)
 def process_state(message):
     chat_id = message.chat.id
