@@ -4,4 +4,3 @@ oauth2client
 pandas
 openpyxl
 gspread-formatting
-flask
