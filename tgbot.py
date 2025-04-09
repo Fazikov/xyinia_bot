@@ -9,22 +9,17 @@ from gspread_formatting import *
 from datetime import datetime
 import time
 
-# Загрузка конфигурации из config.json
-try:
-    with open('config.json', 'r', encoding='utf-8') as config_file:
-        config = json.load(config_file)
-except FileNotFoundError:
-    print("Ошибка: файл config.json не найден!")
-    exit(1)
-except json.JSONDecodeError:
-    print("Ошибка: некорректный формат config.json!")
+# Чтение конфигурации из переменных окружения
+TOKEN = os.getenv("TOKEN")
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+
+# Проверка, что переменные установлены
+if not TOKEN or not SPREADSHEET_ID:
+    print("Ошибка: переменные окружения TOKEN и SPREADSHEET_ID должны быть установлены!")
     exit(1)
 
 # Инициализация бота
-bot = telebot.TeleBot(config['token'])
-
-# Константы из конфига
-SPREADSHEET_ID = config['spreadsheet_id']
+bot = telebot.TeleBot(TOKEN)
 
 # Настройка командного меню
 def set_bot_commands():
