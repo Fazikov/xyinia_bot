@@ -149,12 +149,12 @@ def export_stock(chat_id):
             item_name = row[1]  # Название товара
             qty = int(row[2]) if row[2] and row[2] != '-' else 0  # Количество
             
-            # Обрабатываем дилерскую цену: удаляем '₽', пробелы и заменяем запятую на точку
-            dealer_price_str = row[6].replace('₽', '').replace(',', '.').strip() if row[6] and row[6] != '-' else '0'
+            # Обрабатываем дилерскую цену: удаляем '₽', неразрывные пробелы, обычные пробелы и заменяем запятую на точку
+            dealer_price_str = row[6].replace('₽', '').replace('\xa0', ' ').replace(' ', '').replace(',', '.').strip() if row[6] and row[6] != '-' else '0'
             dealer_price = float(dealer_price_str) if dealer_price_str else 0
             
-            # Обрабатываем обычную цену: удаляем '₽', пробелы и заменяем запятую на точку
-            regular_price_str = row[4].replace('₽', '').replace(',', '.').strip() if row[4] and row[4] != '-' else '0'
+            # Обрабатываем обычную цену: удаляем '₽', неразрывные пробелы, обычные пробелы и заменяем запятую на точку
+            regular_price_str = row[4].replace('₽', '').replace('\xa0', ' ').replace(' ', '').replace(',', '.').strip() if row[4] and row[4] != '-' else '0'
             regular_price = float(regular_price_str) if regular_price_str else 0
             
             if qty > 0:  # Только товары с остатками > 0
