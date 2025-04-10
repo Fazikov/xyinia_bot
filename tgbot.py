@@ -148,8 +148,15 @@ def export_stock(chat_id):
         if len(row) >= 7:  # Убедимся, что строка содержит все нужные столбцы
             item_name = row[1]  # Название товара
             qty = int(row[2]) if row[2] and row[2] != '-' else 0  # Количество
-            dealer_price = float(row[6].replace(',', '.')) if row[6] and row[6] != '-' else 0  # Дилерская цена
-            regular_price = float(row[4].replace(',', '.')) if row[4] and row[4] != '-' else 0  # Обычная цена
+            
+            # Обрабатываем дилерскую цену: удаляем '₽', пробелы и заменяем запятую на точку
+            dealer_price_str = row[6].replace('₽', '').replace(',', '.').strip() if row[6] and row[6] != '-' else '0'
+            dealer_price = float(dealer_price_str) if dealer_price_str else 0
+            
+            # Обрабатываем обычную цену: удаляем '₽', пробелы и заменяем запятую на точку
+            regular_price_str = row[4].replace('₽', '').replace(',', '.').strip() if row[4] and row[4] != '-' else '0'
+            regular_price = float(regular_price_str) if regular_price_str else 0
+            
             if qty > 0:  # Только товары с остатками > 0
                 stock_items.append((item_name, qty, dealer_price, regular_price))
     
@@ -171,7 +178,6 @@ def export_stock(chat_id):
     # Отправляем сообщения с товарами по буквам
     for letter, items in sorted(grouped_items.items()):
         message = f"📦 <b>Товары на букву '{letter}':</b>\n"
-
         for item_name, qty in items:
             message += f"📋 {item_name}\n📏 Количество: {qty}\n\n"
         bot.send_message(chat_id, message.strip(), parse_mode='HTML')
