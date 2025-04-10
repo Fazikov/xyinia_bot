@@ -146,16 +146,31 @@ def export_stock(chat_id):
     stock_items = []
     for row in all_data:
         if len(row) >= 7:  # Убедимся, что строка содержит все нужные столбцы
-            item_name = row[1]  # Название товара
-            qty = int(row[2]) if row[2] and row[2] != '-' else 0  # Количество
+            item_name = row[1] if row[1] else "Неизвестный товар"  # Название товара, если пусто — ставим заглушку
             
-            # Обрабатываем дилерскую цену: удаляем '₽', неразрывные пробелы, обычные пробелы и заменяем запятую на точку
+            # Обрабатываем количество
+            qty_str = row[2].replace('\xa0', ' ').replace(' ', '').strip() if row[2] and row[2] != '-' else '0'
+            try:
+                qty = int(qty_str) if qty_str else 0
+            except ValueError as e:
+                print(f"Ошибка преобразования количества в строке с товаром '{item_name}': {qty_str}, ошибка: {e}")
+                qty = 0
+            
+            # Обрабатываем дилерскую цену
             dealer_price_str = row[6].replace('₽', '').replace('\xa0', ' ').replace(' ', '').replace(',', '.').strip() if row[6] and row[6] != '-' else '0'
-            dealer_price = float(dealer_price_str) if dealer_price_str else 0
+            try:
+                dealer_price = float(dealer_price_str) if dealer_price_str else 0
+            except ValueError as e:
+                print(f"Ошибка преобразования дилерской цены в строке с товаром '{item_name}': {dealer_price_str}, ошибка: {e}")
+                dealer_price = 0
             
-            # Обрабатываем обычную цену: удаляем '₽', неразрывные пробелы, обычные пробелы и заменяем запятую на точку
+            # Обрабатываем обычную цену
             regular_price_str = row[4].replace('₽', '').replace('\xa0', ' ').replace(' ', '').replace(',', '.').strip() if row[4] and row[4] != '-' else '0'
-            regular_price = float(regular_price_str) if regular_price_str else 0
+            try:
+                regular_price = float(regular_price_str) if regular_price_str else 0
+            except ValueError as e:
+                print(f"Ошибка преобразования обычной цены в строке с товаром '{item_name}': {regular_price_str}, ошибка: {e}")
+                regular_price = 0
             
             if qty > 0:  # Только товары с остатками > 0
                 stock_items.append((item_name, qty, dealer_price, regular_price))
@@ -170,7 +185,7 @@ def export_stock(chat_id):
     # Группируем товары по первой букве для вывода в чат
     grouped_items = {}
     for item_name, qty, dealer_price, regular_price in stock_items:
-        first_letter = item_name[0].upper()
+        first_letter = item_name[0].upper() if item_name else '?'
         if first_letter not in grouped_items:
             grouped_items[first_letter] = []
         grouped_items[first_letter].append((item_name, qty))
@@ -198,7 +213,7 @@ def export_stock(chat_id):
         'Обычная цена': [total_regular_price]
     })
     df = pd.concat([df, summary], ignore_index=True)
-    
+
     # Сохраняем в Excel
     file_path = "stock_remains.xlsx"
     df.to_excel(file_path, index=False)
